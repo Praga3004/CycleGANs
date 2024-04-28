@@ -10,7 +10,7 @@ from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
-
+import matplotlib.pyplot as plt
 from PIL import Image
 import torchvision.transforms as transforms
 import torch
@@ -23,7 +23,8 @@ root = '../dataset/'+dataset_name
 img_height = 256
 img_width = 256
 channels = 3
-
+cuda=torch.cuda.is_available()
+Tensor = torch.cuda.FloatTensor if cuda else torch.Tensor
 # training
 epoch = 0 # epoch to start training from
 n_epochs = 5 # number of epochs of training
@@ -111,7 +112,7 @@ n_residual_blocks = 9 # suggested default, number of residual blocks in gene
 
 G_AB = GeneratorResNet(input_shape, n_residual_blocks)
 G_AB = G_AB.cuda()
-def load_checkpoint(file="cycleGans.pt"):
+def load_checkpoint(file):
     """
     Load the saved checkpoint from the specified file.
 
@@ -124,9 +125,15 @@ def load_checkpoint(file="cycleGans.pt"):
     return torch.load(file)
 
 # Example usage:
-checkpoint = load_checkpoint("cycleGans.pt")
+checkpoint = load_checkpoint("T:\pragadesStuff\myStuff\cycleGans\CycleGANs\CycleGans100.pt")
 epoch = checkpoint['epoch']
-G_AB.load_state_dict(checkpoint['state_dict_G_AB'])
+G_AB.load_state_dict(checkpoint['state_dict_G_BA'])
+# G_BA.load_state_dict(checkpoint['state_dict_G_BA'])
+# D_A.load_state_dict(checkpoint['state_dict_D_A'])
+# D_B.load_state_dict(checkpoint['state_dict_D_B'])
+# optimizer_G.load_state_dict(checkpoint['optimizer_G'])
+# optimizer_D_A.load_state_dict(checkpoint['optimizer_D_A'])
+# optimizer_D_B.load_state_dict(checkpoint['optimizer_D_B'])
 def to_rgb(image):
     rgb_image = Image.new("RGB", image.size)
     rgb_image.paste(image)
@@ -173,20 +180,49 @@ def predict_single_image(image_path, generator):
     # Transform the input image
     input_image = transform_image(image_path)
     device = next(generator.parameters()).device
-    input_image = input_image.to(device)
+    input_image = input_image.type(Tensor)
     
     # Make prediction
     with torch.no_grad():
         # Add batch dimension and generate fake image
-        fake_image = generator(input_image.unsqueeze(0))
+
+
+
+
+
+
+        
+        fake_image = generator(input_image)
     
     # Convert the generated image tensor to a PIL image
-    generated_image = transforms.ToPILImage()(fake_image.squeeze(0).cpu())
+    generated_image =G_AB(input_image.unsqueeze(0)).detach()
+
+    generated_image=make_grid(generated_image,normalize=True)
     
     return generated_image
 
 # Example usage:
 # Assuming 'G_AB' is your generator model and 'transform' is your transformation
-image_path = "T:/pragadesStuff/myStuff/cycleGans/CycleGANs/dataset/raw/MRI/mri-4.png"
+image_path = "T:/pragadesStuff/myStuff/cycleGans/CycleGANs/dataset/raw/CT/ct-4.png"
+image_ct="T:/pragadesStuff/myStuff/cycleGans/CycleGANs/dataset/raw/MRI/mri-4.png"
 generated_image = predict_single_image(image_path, G_AB)
-generated_image.convert("L").show() 
+image_path = "T:/pragadesStuff/myStuff/cycleGans/CycleGANs/dataset/raw/CT/ct-4.png"
+# You need to provide the correct path
+# Assuming generated_image is a PIL image
+generated_image = generated_image.cpu().permute(1, 2, 0)
+
+# Load and display images
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))  # 1 row, 3 columns
+axes[0].imshow(plt.imread(image_path), cmap='gray')
+axes[0].set_title('MRI')
+axes[0].axis('off')
+
+axes[1].imshow(plt.imread(image_ct), cmap='gray')
+axes[1].set_title('CT')
+axes[1].axis('off')
+
+axes[2].imshow(generated_image)
+axes[2].set_title('Synth CT')
+axes[2].axis('off')
+
+plt.show()
